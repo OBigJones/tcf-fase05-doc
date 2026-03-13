@@ -1,0 +1,549 @@
+{
+  "info": {
+    "_postman_id": "5cd876b3-3bdc-4bc9-bc2d-42b570d2bdaa",
+    "name": "TCF Fase 05 - BFF",
+    "description": "Coleção Postman gerada a partir do código do BFF Spring Boot. Cobre autenticação e fluxo principal de vídeos para apresentação.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "email",
+      "value": "bigjones+demo@example.com"
+    },
+    {
+      "key": "password",
+      "value": "Senha@123"
+    },
+    {
+      "key": "name",
+      "value": "Big Jones Demo"
+    },
+    {
+      "key": "cpf",
+      "value": "12345678901"
+    },
+    {
+      "key": "requestedFps",
+      "value": "24"
+    },
+    {
+      "key": "skip",
+      "value": "0"
+    },
+    {
+      "key": "take",
+      "value": "10"
+    },
+    {
+      "key": "videoId",
+      "value": ""
+    },
+    {
+      "key": "videoPath1",
+      "value": "/caminho/para/video1.mp4"
+    },
+    {
+      "key": "videoPath2",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Mantém Authorization padronizado nas rotas protegidas quando a variável token estiver preenchida.",
+          "const token = pm.collectionVariables.get('token') || '';",
+          "if (token && !pm.request.headers.has('Authorization')) {",
+          "    pm.request.headers.add({ key: 'Authorization', value: `Bearer ${token}` });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "00 - Health check rápido",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/error",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "error"
+          ]
+        },
+        "description": "Endpoint liberado no SecurityConfig. Serve só para validar se a app está respondendo."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Recebeu alguma resposta do servidor', function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 400, 404, 500]);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Auth",
+      "item": [
+        {
+          "name": "Signup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{name}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"cpf\": \"{{cpf}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/signup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "signup"
+              ]
+            },
+            "description": "Cria usuário no serviço de usuários + credencial no serviço de auth. O controller está anotado com 201, mas no código retorna ResponseEntity.ok(...), então o esperado prático tende a ser 200."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Signup respondeu sucesso', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json && json.token) {",
+                  "    pm.collectionVariables.set('token', json.token);",
+                  "}",
+                  "pm.test('Retornou token', function () {",
+                  "    pm.expect(json.token).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Autentica e sobrescreve a variável token para as rotas protegidas."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login respondeu sucesso', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "const json = pm.response.json();",
+                  "if (json && json.token) {",
+                  "    pm.collectionVariables.set('token', json.token);",
+                  "}",
+                  "pm.test('Retornou token', function () {",
+                  "    pm.expect(json.token).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Bridge / vídeos",
+      "item": [
+        {
+          "name": "Processar vídeo(s)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": "{{videoPath1}}"
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": "{{videoPath2}}"
+                },
+                {
+                  "key": "requestedFps",
+                  "type": "text",
+                  "value": "{{requestedFps}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bridge/process",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bridge",
+                "process"
+              ]
+            },
+            "description": "Envia um ou mais arquivos multipart. Se for usar apenas 1 vídeo, remova a segunda linha `files` vazia no Postman para evitar erro de arquivo inexistente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Processamento aceito com sucesso', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 202]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar vídeos",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bridge/list?skip={{skip}}&take={{take}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bridge",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "{{skip}}"
+                },
+                {
+                  "key": "take",
+                  "value": "{{take}}"
+                }
+              ]
+            },
+            "description": "Lista os vídeos do usuário autenticado. O teste tenta salvar um `videoId` automaticamente para o download."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Listagem respondeu sucesso', function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "const arr = pm.response.json();",
+                  "pm.test('Retornou array', function () {",
+                  "    pm.expect(arr).to.be.an('array');",
+                  "});",
+                  "if (Array.isArray(arr) && arr.length > 0) {",
+                  "    const preferred = arr.find(x => x.ResultAvailable === true) || arr[0];",
+                  "    if (preferred && preferred.VideoId) {",
+                  "        pm.collectionVariables.set('videoId', preferred.VideoId);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Download do resultado",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/bridge/{{videoId}}/download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bridge",
+                "{{videoId}}",
+                "download"
+              ]
+            },
+            "description": "Baixa um ZIP com o resultado do processamento. Antes, rode a listagem para preencher `videoId`, ou informe manualmente."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Download respondeu sucesso', function () {",
+                  "    pm.expect(pm.response.code).to.eql(200);",
+                  "});",
+                  "pm.test('Content-Type indica zip ou octet-stream', function () {",
+                  "    const ct = pm.response.headers.get('Content-Type') || '';",
+                  "    pm.expect(ct.toLowerCase()).to.satisfy(v => v.includes('zip') || v.includes('octet-stream'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Fluxo guiado para apresentação",
+      "description": "Ordem sugerida para demo: Signup (uma vez) -> Login -> Processar vídeo(s) -> Listar vídeos -> Download do resultado.",
+      "item": [
+        {
+          "name": "Login -> salva token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json && json.token) pm.collectionVariables.set('token', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Processar 1 vídeo",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": "{{videoPath1}}"
+                },
+                {
+                  "key": "requestedFps",
+                  "type": "text",
+                  "value": "{{requestedFps}}"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/bridge/process",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bridge",
+                "process"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar -> salva videoId",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/bridge/list?skip=0&take=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bridge",
+                "list"
+              ],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "take",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const arr = pm.response.json();",
+                  "if (Array.isArray(arr) && arr.length) {",
+                  "  const preferred = arr.find(x => x.ResultAvailable === true) || arr[0];",
+                  "  if (preferred && preferred.VideoId) pm.collectionVariables.set('videoId', preferred.VideoId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Download do último videoId salvo",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/bridge/{{videoId}}/download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "bridge",
+                "{{videoId}}",
+                "download"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
